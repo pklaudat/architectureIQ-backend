@@ -32,7 +32,7 @@ class FileType(str, Enum):
 class DocumentStatus(str, Enum):
     PENDING = "Pending"
     PROCESSING = "Processing"
-    COMPLETED = "Completed"
+    CONTENT_EXTRACTED = "ContentExtracted"
     FAILED = "Failed"
 
 

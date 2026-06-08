@@ -8,12 +8,13 @@ from api.models.document import *
 from api.services.blob_storage import BlobStorageService
 from api.services.cosmos_db import CosmosDbService
 from api.services.publisher import ServiceBusQueuePublisher
+from config import settings
 
 router = APIRouter()
 
 
 db = CosmosDbService(container_name="Documents")
-queue = ServiceBusQueuePublisher(queue_name="document-processing")
+queue = ServiceBusQueuePublisher()
 storage = BlobStorageService(container_name="architecture-documents")
 
 
@@ -29,7 +30,9 @@ async def upload_document(project_id: str, file: UploadFile = File(...)):
     content = await file.read()
 
     blob_url = await storage.upload_file(
-        blob_name=blob_name, content=content, content_type=file.content_type,
+        blob_name=blob_name,
+        content=content,
+        content_type=file.content_type,
     )
 
     upload_response = UploadResponse(

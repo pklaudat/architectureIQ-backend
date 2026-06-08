@@ -11,14 +11,15 @@ class BlobStorageService:
 
         credential = DefaultAzureCredential()
 
-        self.client = BlobServiceClient(
-            account_url=account_url, credential=credential
-        )
-        
+        self.client = BlobServiceClient(account_url=account_url, credential=credential)
+
         self.container = self.client.get_container_client(container_name)
 
     async def upload_file(
-        self, blob_name: str, content: bytes, content_type: str,
+        self,
+        blob_name: str,
+        content: bytes,
+        content_type: str,
     ):
 
         self.container.upload_blob(
@@ -31,14 +32,12 @@ class BlobStorageService:
             f"{self.container.container_name}/{blob_name}"
         )
 
-    async def read_text(
-        self, blob_name: str, encoding: str = "utf-8"
-    ) -> str:
+    async def read_text(self, blob_name: str, encoding: str = "utf-8") -> str:
 
-        download_stream = await self.client.get_blob_client(
+        download_stream = self.client.get_blob_client(
             container=self.container.container_name, blob=blob_name
-        )
+        ).download_blob()
 
-        content = await download_stream.readall()
+        content = download_stream.readall()
 
         return content.decode(encoding)

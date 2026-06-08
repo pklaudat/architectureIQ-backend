@@ -9,11 +9,11 @@ from config import settings
 class ServiceBusQueuePublisher:
     def __init__(
         self,
-        queue_name: str,
-        fully_qualified_namespace: str = None,
+        queue_name: Optional[str] = None,
+        fully_qualified_namespace: Optional[str] = None,
     ):
         self._namespace = fully_qualified_namespace or settings.servicebus_namespace
-        self._queue_name = queue_name
+        self._queue_name = queue_name or settings.servicebus_queue
         self._credential = DefaultAzureCredential()
 
     async def publish(self, payload: dict, subject: Optional[str] = None):

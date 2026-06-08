@@ -31,11 +31,13 @@ async def create_project(project_name: str):
 
     return response
 
+
 @router.get("/project/{project_id}", response_model=Project)
 async def get_project_details(project_id: str):
     response = await cosmos.get_item(item_id=project_id, partition_key=project_id)
 
     return response
+
 
 # @router.delete("/project/{project_id}")
 # async def delete_project(project_id: str):
