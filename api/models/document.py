@@ -12,6 +12,7 @@ class UploadResponse(BaseModel):
 class FileFormat(str, Enum):
     PDF = "PDF"
     TXT = "TXT"
+    MD = "MD"
     DOCX = "DOCX"
     PNG = "PNG"
     JPEG = "JPEG"

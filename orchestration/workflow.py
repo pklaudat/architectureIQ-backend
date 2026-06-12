@@ -1,4 +1,4 @@
-from agent_framework import WorkflowBuilder, Agent, ChatOptions
+from agent_framework import WorkflowBuilder, Agent, ChatOptions, MCPStreamableHTTPTool
 from agent_framework.openai import OpenAIChatClient
 from orchestration.agents import models as model
 from orchestration.agents.dispatcher import Dispatcher
@@ -11,7 +11,7 @@ def workflow():
 
     chat_client = OpenAIChatClient(model=model.DISPATCHER_MODEL)
 
-    dispatcher = Dispatcher(id="ReviewDispatcher")
+    dispatcher = Dispatcher(id="review_dispatcher")
 
     architecture_facts_extractor = Agent(
         client=chat_client,
@@ -27,15 +27,23 @@ def workflow():
         name="Enterprise Architect Reviewer",
         instructions=prompt_content(name="EA_REVIEWER"),
         default_options=ChatOptions(response_format=EAReview),
+        tools=[
+            MCPStreamableHTTPTool(
+                name="Microsoft Learn MCP",
+                url="https://learn.microsoft.com/api/mcp",
+                approval_mode="never_require",
+                request_timeout=30,
+                description="Microsoft Learn official MCP server.",
+            )
+        ],
     )
 
     internal_iq_advisor = Agent(
         client=chat_client,
-        id="internal_iq_adivisor",
+        id="internal_iq_advisor",
         name="Internal IQ Adivisor",
         instructions=prompt_content(name="IQ_REVIEWER"),
         default_options=ChatOptions(response_format=IQReview),
-        tools=[],  # Internal Knowledge Base Here
     )
 
     aggregator = Aggregator(id="aggregator")

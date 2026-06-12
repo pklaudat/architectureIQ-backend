@@ -1,6 +1,11 @@
 import json
 from uuid import uuid4
-from agent_framework import Executor, handler, AgentExecutorResponse, WorkflowContext
+from agent_framework import (
+    Executor,
+    handler,
+    AgentExecutorResponse,
+    WorkflowContext
+)
 from orchestration.agents.state import AggregatedReview
 
 
@@ -29,7 +34,6 @@ class Aggregator(Executor):
         )
 
         final_review = AggregatedReview(
-            review_id=str(uuid4()),
             ea_score=ea_review.get("score", 0),
             iq_score=iq_review.get("score", 0),
             overall_score=round(

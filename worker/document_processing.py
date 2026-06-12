@@ -3,6 +3,9 @@ from api.services.blob_storage import BlobStorageService
 from api.services.consumer import ServiceBusQueueConsumer
 from orchestration.workflow import workflow
 from api.models.document import Document, FileFormat, DocumentStatus
+from api.models.review import Review
+from agent_framework import WorkflowRunResult
+from uuid import uuid4
 
 w = workflow()
 
@@ -16,11 +19,51 @@ class DocumentProcessing(ServiceBusQueueConsumer):
     async def call_agentic_system(
         self, project_id: str, document_id: str, document_content: str
     ):
+        # executors = {
+        #         "review_dispatcher": "",
+        #         "architecture_facts_extractor": 
+        #         "enterprise_architecture_reviewer": "",
+        #         "internal_iq_advisor": "",
+        #         "aggregator": "",
+        #         "review_curator": ""
+        # }
+        review_id = str(uuid4())
 
         async for event in w.run(document_content):
-            if event.type == "executor_started" and event.executor_id == "":
-                pass
 
+            if event.type == "started":
+                review = Review(
+                    id=review_id,
+                    project_id=project_id,
+                )
+                reviews.create_item(review.model_dump())
+
+            elif event.type == "executor_completed":
+                breakpoint()
+                status = event.state.status
+
+                if event.state:
+                    db.patch_item(
+                        partition_key=document_id,
+                        project_id=document_id,
+                        operations=[{
+                            "op": "replace",
+                            "path": "/status",
+                            "value": status
+                        }]
+                    )
+            
+            if type(event) == WorkflowRunResult:
+                reviews.patch_item(
+                    item_id=review_id,
+                    partition_key=review_id,
+                    operations=[{
+                        "op": "replace",
+                        "path": "/content",
+                        "value": event.get_final_state().content
+                    }]
+                )
+            
     async def pre_content_analyzis(self, document: Document):
         """Review the uploaded content and determine label the file with its content type"""
         print("Pre Content Analyzis step")
@@ -33,18 +76,22 @@ class DocumentProcessing(ServiceBusQueueConsumer):
         if document.file_format == FileFormat.TXT:
             print("TXT File detected.")
             content = await blob.read_text(
-                blob_name="/".join(document.blob_url.replace("https://", "").split("/")[2:]),
+                blob_name="/".join(
+                    document.blob_url.replace("https://", "").split("/")[2:]
+                ),
             )
             print(content)
 
         await db.patch_item(
             item_id=document.id,
             partition_key=document.id,
-            operations=[{
-                "op": "replace",
-                "path": "/status",
-                "value": DocumentStatus.CONTENT_EXTRACTED.value
-            }]
+            operations=[
+                {
+                    "op": "replace",
+                    "path": "/status",
+                    "value": DocumentStatus.CONTENT_EXTRACTED.value,
+                }
+            ],
         )
 
         return content
@@ -61,12 +108,14 @@ class DocumentProcessing(ServiceBusQueueConsumer):
             response = await db.patch_item(
                 item["id"],
                 partition_key=item["id"],
-                operations=[{
-                    "op": "replace",
-                    "path": "/status",
-                    "value": DocumentStatus.PROCESSING.value
-                }],
-            )  
+                operations=[
+                    {
+                        "op": "replace",
+                        "path": "/status",
+                        "value": DocumentStatus.PROCESSING.value,
+                    }
+                ],
+            )
 
             if response["status"] != DocumentStatus.PROCESSING.value:
                 raise Exception("Document status could not be updated.")

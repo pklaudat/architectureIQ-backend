@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 
+document_worker = DocumentProcessing()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("STARTUP")
@@ -26,7 +28,6 @@ app = FastAPI(title="Enterprise Architecture Advisor", lifespan=lifespan)
 app.include_router(document_router, prefix="/api", tags=["documents"])
 app.include_router(project_router, prefix="/api", tags=["projects"])
 
-document_worker = DocumentProcessing()
 
 if __name__ == "__main__":
     uvicorn.run(app=app, host="127.0.0.1", port=8080)

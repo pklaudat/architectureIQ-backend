@@ -17,13 +17,14 @@ class ServiceBusQueueConsumer:
         self._credential = DefaultAzureCredential()
 
     async def start(self):
-        
+
         print("starting new process")
         while True:
             try:
                 async with self._credential:
                     client = ServiceBusClient(
-                        fully_qualified_namespace=self._namespace, credential=self._credential
+                        fully_qualified_namespace=self._namespace,
+                        credential=self._credential,
                     )
 
                     print("setup client for service bus consumer")

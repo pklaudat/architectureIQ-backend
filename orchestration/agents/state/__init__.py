@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,18 @@ class Technology(BaseModel):
     cloud_services: list[str] = Field(default_factory=list)
 
 
+class ReviewStatus(str, Enum):
+    review_dispatched = "started"
+    facts_extracted = "facts_extracted"
+    ea_review_complete = "ea_review_complete"
+    iq_review_complete = "iq_review_complete"
+    aggregated = "aggregated"
+    curated = "curated"
+    completed = "completed"
+
+
 class ArchitectureFacts(BaseModel):
+    status = Literal[ReviewStatus.facts_extracted] = ReviewStatus.facts_extracted
     system_name: Optional[str] = None
     stakeholders: list[str] = Field(default_factory=list)
     authentication: Optional[Authentication] = None
@@ -73,17 +84,6 @@ class RecommendationEntity(BaseModel):
     references: list[str] = Field(default_factory=list)
 
 
-class ReviewStatus(str, Enum):
-    uploaded = "uploaded"
-    content_extracted = "content_extracted"
-    facts_extracted = "facts_extracted"
-    ea_review_complete = "ea_review_complete"
-    iq_review_complete = "iq_review_complete"
-    aggregated = "aggregated"
-    curated = "curated"
-    completed = "completed"
-
-
 class ReviewResult(BaseModel):
     score: int
     max_score: int = 100
@@ -93,7 +93,7 @@ class ReviewResult(BaseModel):
 
 
 class EAReview(ReviewResult):
-    review_id: str
+    status = Literal[ReviewStatus.ea_review_complete] = ReviewStatus.ea_review_complete
     framework: str = "TOGAF"
     status: str = "completed"
 
@@ -106,13 +106,13 @@ class Violation(BaseModel):
 
 
 class IQReview(ReviewResult):
-    review_id: str
+    status = Literal[ReviewStatus.iq_review_complete] = ReviewStatus.iq_review_complete
     violations: list[Violation] = Field(default_factory=list)
     status: str = "completed"
 
 
 class AggregatedReview(BaseModel):
-    review_id: str
+    status: Literal[ReviewStatus.aggregated] = ReviewStatus.aggregated
     overall_score: int
     ea_score: int
     iq_score: int
@@ -122,6 +122,7 @@ class AggregatedReview(BaseModel):
 
 
 class CuratedReport(BaseModel):
+    status : Literal[ReviewStatus.curated] = ReviewStatus.curated
     executive_summary: str
     strengths: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
@@ -131,7 +132,7 @@ class CuratedReport(BaseModel):
 
 class ReviewState(BaseModel):
     document_url: str
-    status: ReviewStatus
+    status: ReviewStatus = ReviewStatus.review_dispatched
     extracted_content: Optional[str] = None
     facts: Optional[ArchitectureFacts] = None
     ea_review: Optional[EAReview] = None
