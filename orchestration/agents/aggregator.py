@@ -1,12 +1,7 @@
 import json
 from uuid import uuid4
-from agent_framework import (
-    Executor,
-    handler,
-    AgentExecutorResponse,
-    WorkflowContext
-)
-from orchestration.agents.state import AggregatedReview
+from agent_framework import Executor, handler, AgentExecutorResponse, WorkflowContext
+from orchestration.agents.state import AggregatedReview, StateMap
 
 
 class Aggregator(Executor):
@@ -27,10 +22,10 @@ class Aggregator(Executor):
             )
 
         ea_review = json.loads(
-            aggregation.get("Enterprise Architect Reviewer", {}).get("text", "")
+            aggregation.get(StateMap.enterprise_architecture_reviewer.name, {}).get("text", "")
         )
         iq_review = json.loads(
-            aggregation.get("Internal IQ Adivisor", {}).get("text", "")
+            aggregation.get(StateMap.internal_iq_advisor.name, {}).get("text", "")
         )
 
         final_review = AggregatedReview(

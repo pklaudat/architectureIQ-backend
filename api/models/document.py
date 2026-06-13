@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
 
@@ -45,3 +46,4 @@ class Document(BaseModel):
     file_type: Optional[FileType]
     project_id: str
     status: DocumentStatus
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())

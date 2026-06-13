@@ -7,7 +7,7 @@ from utils import prompt_content
 from orchestration.agents.state import *
 
 
-def workflow():
+def review_workflow():
 
     chat_client = OpenAIChatClient(model=model.DISPATCHER_MODEL)
 
@@ -16,7 +16,7 @@ def workflow():
     architecture_facts_extractor = Agent(
         client=chat_client,
         id="architecture_facts_extractor",
-        name="Architecture Facts Extractor",
+        # name="Architecture Facts Extractor",
         instructions=prompt_content(name="ARCHITECTURE_FACTS"),
         default_options=ChatOptions(response_format=ArchitectureFacts),
     )
@@ -24,7 +24,7 @@ def workflow():
     enterprise_arch_reviewer = Agent(
         client=chat_client,
         id="enterprise_architecture_reviewer",
-        name="Enterprise Architect Reviewer",
+        # name="Enterprise Architect Reviewer",
         instructions=prompt_content(name="EA_REVIEWER"),
         default_options=ChatOptions(response_format=EAReview),
         tools=[
@@ -41,7 +41,7 @@ def workflow():
     internal_iq_advisor = Agent(
         client=chat_client,
         id="internal_iq_advisor",
-        name="Internal IQ Adivisor",
+        # name="Internal IQ Adivisor",
         instructions=prompt_content(name="IQ_REVIEWER"),
         default_options=ChatOptions(response_format=IQReview),
     )
@@ -51,7 +51,7 @@ def workflow():
     curator = Agent(
         client=chat_client,
         id="review_curator",
-        name="ReviewCurator",
+        # name="ReviewCurator",
         instructions=prompt_content(name="CURATOR"),
         default_options=ChatOptions(response_format=ReviewResult),
     )

@@ -69,10 +69,11 @@ class CosmosDbService:
         parameters: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         results = [
-            item async for item in self.container.query_items(
-            query=query,
-            parameters=parameters or []
-        )]
+            item
+            async for item in self.container.query_items(
+                query=query, parameters=parameters or []
+            )
+        ]
 
         return results
 

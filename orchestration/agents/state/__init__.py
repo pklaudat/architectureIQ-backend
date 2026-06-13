@@ -26,13 +26,24 @@ class Technology(BaseModel):
 
 
 class ReviewStatus(str, Enum):
-    review_dispatched = "started"
+    in_progress = "in_progress"
+    started = "started"
     facts_extracted = "facts_extracted"
     ea_review_complete = "ea_review_complete"
     iq_review_complete = "iq_review_complete"
     aggregated = "aggregated"
     curated = "curated"
     completed = "completed"
+    failed = "failed"
+
+
+class StateMap(str, Enum):
+    architecture_facts_extractor = ReviewStatus.facts_extracted.value
+    enterprise_architecture_reviewer = ReviewStatus.ea_review_complete.value
+    internal_iq_advisor = ReviewStatus.iq_review_complete.value
+    aggregator = ReviewStatus.aggregated.value
+    review_curator = ReviewStatus.curated.value
+    review_dispatcher = ReviewStatus.started.value
 
 
 class ArchitectureFacts(BaseModel):
@@ -122,7 +133,7 @@ class AggregatedReview(BaseModel):
 
 
 class CuratedReport(BaseModel):
-    status : Literal[ReviewStatus.curated] = ReviewStatus.curated
+    status: Literal[ReviewStatus.curated] = ReviewStatus.curated
     executive_summary: str
     strengths: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
@@ -132,7 +143,7 @@ class CuratedReport(BaseModel):
 
 class ReviewState(BaseModel):
     document_url: str
-    status: ReviewStatus = ReviewStatus.review_dispatched
+    status: ReviewStatus = Field(default=ReviewStatus.started)
     extracted_content: Optional[str] = None
     facts: Optional[ArchitectureFacts] = None
     ea_review: Optional[EAReview] = None

@@ -1,23 +1,22 @@
 import asyncio
-from typing import cast
-from os import environ as env
 from fastapi import FastAPI
-from agent_framework.devui import serve
-from agent_framework import AgentResponseUpdate, Message, AgentResponse
 from api.routes.document import router as document_router
 from api.routes.projects import router as project_router
-from orchestration.workflow import workflow
+from api.routes.reviews import router as review_router
 from worker.document_processing import DocumentProcessing
+from worker.agentic_review import AgenticReview
 from contextlib import asynccontextmanager
 import uvicorn
 
+document_worker = DocumentProcessing(queue_name="document-processing")
+agentic_review = AgenticReview(queue_name="reviews-processing")
 
-document_worker = DocumentProcessing()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("STARTUP")
     task = asyncio.create_task(document_worker.start())
+    task = asyncio.create_task(agentic_review.start())
     yield
     print("SHUTDOWN")
     task.cancel()
@@ -27,6 +26,7 @@ app = FastAPI(title="Enterprise Architecture Advisor", lifespan=lifespan)
 
 app.include_router(document_router, prefix="/api", tags=["documents"])
 app.include_router(project_router, prefix="/api", tags=["projects"])
+app.include_router(review_router, prefix="/api", tags=["reviews"])
 
 
 if __name__ == "__main__":

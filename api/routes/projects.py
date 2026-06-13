@@ -18,7 +18,6 @@ async def create_project(project_name: str):
         project = Project(
             id=project_id,
             display_name=project_name,
-            created_at=str(datetime.datetime.now()),
             author_email="paulo@earewvier.com",
             author_name="Paulo",
         )
