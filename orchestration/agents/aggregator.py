@@ -34,6 +34,7 @@ class Aggregator(Executor):
             overall_score=round(
                 (ea_review.get("score", 0) * 4 + iq_review.get("score", 0) * 6) / 10
             ),
+            facts=ea_review.get("facts", []),
             findings=ea_review.get("findings", []) + iq_review.get("findings"),
             recommendations=ea_review.get("recommendations", [])
             + iq_review.get("recommendations", []),

@@ -5,6 +5,7 @@ from orchestration.agents.dispatcher import Dispatcher
 from orchestration.agents.aggregator import Aggregator
 from utils import prompt_content
 from orchestration.agents.state import *
+from orchestration.agents.auto_retry import RateLimitRetryMiddleware
 
 
 def review_workflow():
@@ -19,6 +20,7 @@ def review_workflow():
         # name="Architecture Facts Extractor",
         instructions=prompt_content(name="ARCHITECTURE_FACTS"),
         default_options=ChatOptions(response_format=ArchitectureFacts),
+        middleware=[RateLimitRetryMiddleware(max_attempts=3)]
     )
 
     enterprise_arch_reviewer = Agent(
@@ -36,6 +38,7 @@ def review_workflow():
                 description="Microsoft Learn official MCP server.",
             )
         ],
+        middleware=[RateLimitRetryMiddleware(max_attempts=3)]
     )
 
     internal_iq_advisor = Agent(
@@ -44,6 +47,7 @@ def review_workflow():
         # name="Internal IQ Adivisor",
         instructions=prompt_content(name="IQ_REVIEWER"),
         default_options=ChatOptions(response_format=IQReview),
+        middleware=[RateLimitRetryMiddleware(max_attempts=3)]
     )
 
     aggregator = Aggregator(id="aggregator")
@@ -53,7 +57,8 @@ def review_workflow():
         id="review_curator",
         # name="ReviewCurator",
         instructions=prompt_content(name="CURATOR"),
-        default_options=ChatOptions(response_format=ReviewResult),
+        default_options=ChatOptions(response_format=FinalReviewResult),
+        middleware=[RateLimitRetryMiddleware(max_attempts=3)]
     )
 
     return (

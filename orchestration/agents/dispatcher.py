@@ -1,4 +1,4 @@
-from agent_framework import Executor, WorkflowContext, handler
+from agent_framework import Executor, WorkflowContext, handler, AgentExecutorResponse
 
 
 class Dispatcher(Executor):

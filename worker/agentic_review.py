@@ -1,4 +1,5 @@
 from datetime import datetime
+from agent_framework import AgentResponseUpdate
 from orchestration.agents.state import StateMap
 from api.services.blob_storage import BlobStorageService
 from api.services.consumer import ServiceBusQueueConsumer
@@ -24,6 +25,8 @@ class AgenticReview(ServiceBusQueueConsumer):
     async def execute(self, review_id: str, document_content: str):
         w = review_workflow()
 
+        last_agent: str | None = None
+
         async for event in w.run(document_content, stream=True):
 
             if event.type == "executor_completed":
@@ -36,26 +39,34 @@ class AgenticReview(ServiceBusQueueConsumer):
                     f"Updated status in review container - {status}"
                 )
 
-            elif event == "superstep_completed":
-                print(f"Agentic Workflow for {review_id} completed")
+                if event.executor_id == StateMap.architecture_facts_extractor.name:
+                    pass
+            
+                elif event.executor_id == StateMap.review_curator.name:
+                    print(f"Review for {review_id} is completed")
+                    result = event.data[0].agent_response.value
+                    breakpoint()
 
-                await reviews.patch_item(
-                    item_id=review_id,
-                    partition_key=review_id,
-                    operations=[
-                        {"op": "replace", "path": "/content", "value": ""},
-                        {"op": "replace", "path": "/status", "value": "completed"},
-                        {
-                            "op": "replace",
-                            "path": "/completed_at",
-                            "value": datetime.now().isoformat(),
-                        },
-                    ],
-                )
 
-                breakpoint()
+                    await reviews.patch_item(
+                        item_id=review_id,
+                        partition_key=review_id,
+                        operations=[
+                            {"op": "replace", "path": "/status", "value": "completed" },
+                            {"op": "replace", "path": "/score", "value": result.score },
+                            {"op": "replace", "path": "/facts", "value": result.facts.model_dump()},
+                            {"op": "replace", "path": "/findings", "value": [m.model_dump() for m in result.aggregated_review.findings]},
+                            {"op": "replace", "path": "/recommendations", "value": [m.model_dump() for m in result.aggregated_review.recommendations]},
+                            {"op": "replace", "path": "/report", "value": result.curated_report.model_dump()},
+                            {
+                                "op": "replace",
+                                "path": "/completed_at",
+                                "value": datetime.now().isoformat(),
+                            },
+                        ],
+                    )
 
-                print(f"Successfully persisted the memory for {review_id}")
+                    print(f"Successfully persisted the memory for {review_id}")
 
     async def process_message(self, payload: dict):
         print(f"Review started for {payload["id"]}")

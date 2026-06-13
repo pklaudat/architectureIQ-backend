@@ -42,17 +42,17 @@ class StateMap(str, Enum):
     enterprise_architecture_reviewer = ReviewStatus.ea_review_complete.value
     internal_iq_advisor = ReviewStatus.iq_review_complete.value
     aggregator = ReviewStatus.aggregated.value
-    review_curator = ReviewStatus.curated.value
+    review_curator = ReviewStatus.completed.value
     review_dispatcher = ReviewStatus.started.value
 
 
 class ArchitectureFacts(BaseModel):
     status: Literal[ReviewStatus.facts_extracted] = ReviewStatus.facts_extracted
-    system_name: Optional[str] = None
+    system_name: str
     stakeholders: list[str] = Field(default_factory=list)
-    authentication: Optional[Authentication] = None
+    authentication: Authentication = None
     availability: Optional[Availability] = None
-    technology: Optional[Technology] = None
+    technology: Technology = None
     missing_information: list[str] = Field(default_factory=list)
 
 
@@ -98,6 +98,7 @@ class RecommendationEntity(BaseModel):
 class ReviewResult(BaseModel):
     score: int
     max_score: int = 100
+    facts: ArchitectureFacts
     findings: list[Finding] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     recommendations: list[RecommendationEntity] = Field(default_factory=list)
@@ -127,6 +128,7 @@ class AggregatedReview(BaseModel):
     overall_score: int
     ea_score: int
     iq_score: int
+    facts: ArchitectureFacts
     findings: list[Finding] = Field(default_factory=list)
     recommendations: list[RecommendationEntity] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
@@ -141,12 +143,9 @@ class CuratedReport(BaseModel):
     references: list[str] = Field(default_factory=list)
 
 
-class ReviewState(BaseModel):
-    document_url: str
+class FinalReviewResult(BaseModel):
     status: ReviewStatus = Field(default=ReviewStatus.started)
-    extracted_content: Optional[str] = None
-    facts: Optional[ArchitectureFacts] = None
-    ea_review: Optional[EAReview] = None
-    iq_review: Optional[IQReview] = None
-    aggregated_review: Optional[AggregatedReview] = None
-    curated_report: Optional[CuratedReport] = None
+    score: int
+    facts: ArchitectureFacts
+    aggregated_review: AggregatedReview
+    curated_report: CuratedReport
