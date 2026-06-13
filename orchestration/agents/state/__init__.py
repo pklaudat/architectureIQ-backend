@@ -36,7 +36,7 @@ class ReviewStatus(str, Enum):
 
 
 class ArchitectureFacts(BaseModel):
-    status = Literal[ReviewStatus.facts_extracted] = ReviewStatus.facts_extracted
+    status: Literal[ReviewStatus.facts_extracted] = ReviewStatus.facts_extracted
     system_name: Optional[str] = None
     stakeholders: list[str] = Field(default_factory=list)
     authentication: Optional[Authentication] = None
@@ -93,7 +93,7 @@ class ReviewResult(BaseModel):
 
 
 class EAReview(ReviewResult):
-    status = Literal[ReviewStatus.ea_review_complete] = ReviewStatus.ea_review_complete
+    status: Literal[ReviewStatus.ea_review_complete] = ReviewStatus.ea_review_complete
     framework: str = "TOGAF"
     status: str = "completed"
 
@@ -106,7 +106,7 @@ class Violation(BaseModel):
 
 
 class IQReview(ReviewResult):
-    status = Literal[ReviewStatus.iq_review_complete] = ReviewStatus.iq_review_complete
+    status: Literal[ReviewStatus.iq_review_complete] = ReviewStatus.iq_review_complete
     violations: list[Violation] = Field(default_factory=list)
     status: str = "completed"
 

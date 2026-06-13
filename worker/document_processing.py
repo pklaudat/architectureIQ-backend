@@ -31,15 +31,23 @@ class DocumentProcessing(ServiceBusQueueConsumer):
 
         async for event in w.run(document_content):
 
+            breakpoint()
+
             if event.type == "started":
+
+                print(f"Workflow started for {review_id}")
+
                 review = Review(
                     id=review_id,
                     project_id=project_id,
                 )
+
                 reviews.create_item(review.model_dump())
 
+                print(f"Created item in Reviews Container to store {review_id}")
+
             elif event.type == "executor_completed":
-                breakpoint()
+                print(f"A step in workflow has been completed {event.executor_id}")
                 status = event.state.status
 
                 if event.state:
@@ -52,8 +60,12 @@ class DocumentProcessing(ServiceBusQueueConsumer):
                             "value": status
                         }]
                     )
+
+                    print(f"Updated status in review container - {status}")
             
             if type(event) == WorkflowRunResult:
+                print(f"Agentic Workflow for {review_id} completed")
+
                 reviews.patch_item(
                     item_id=review_id,
                     partition_key=review_id,
@@ -63,6 +75,8 @@ class DocumentProcessing(ServiceBusQueueConsumer):
                         "value": event.get_final_state().content
                     }]
                 )
+
+                print(f"Successfully persisted the memory for {review_id}")
             
     async def pre_content_analyzis(self, document: Document):
         """Review the uploaded content and determine label the file with its content type"""

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 from azure.cosmos.aio import CosmosClient
+from azure.identity import DefaultAzureCredential
 from config import settings
 
 
@@ -11,7 +12,7 @@ class CosmosDbService:
         container_name: str,
     ):
         self.client = CosmosClient(
-            settings.cosmos_db_url, credential=settings.cosmos_db_key
+            settings.cosmos_db_url, credential=DefaultAzureCredential()
         )
 
         self.database = self.client.get_database_client(settings.cosmos_db_account_name)
@@ -67,13 +68,13 @@ class CosmosDbService:
         query: str,
         parameters: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        results = await self.container.query_items(
+        results = [
+            item async for item in self.container.query_items(
             query=query,
-            parameters=parameters or [],
-            enable_cross_partition_query=True,
-        )
+            parameters=parameters or []
+        )]
 
-        return list(results)
+        return results
 
     async def patch_item(
         self,

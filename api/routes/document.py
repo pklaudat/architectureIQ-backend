@@ -1,6 +1,7 @@
 from uuid import uuid4
-
-from fastapi import APIRouter, HTTPException
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
+from typing import Annotated, List
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi import UploadFile
 from fastapi import File
 
@@ -10,22 +11,35 @@ from api.services.cosmos_db import CosmosDbService
 from api.services.publisher import ServiceBusQueuePublisher
 from config import settings
 
-router = APIRouter()
 
-
-db = CosmosDbService(container_name="Documents")
+document = CosmosDbService(container_name="Documents")
+projects = CosmosDbService(container_name="Projects")
 queue = ServiceBusQueuePublisher()
 storage = BlobStorageService(container_name="architecture-documents")
 
+router = APIRouter()
+
+
+async def get_project(project_id: str):
+    project = await projects.get_item(item_id=project_id, partition_key=project_id)
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project doesn't exist")
+    
+    return project
+
+ProjectDependency = Annotated[dict, Depends(get_project)]
+
 
 @router.post("/project/{project_id}/documents", response_model=UploadResponse)
-async def upload_document(project_id: str, file: UploadFile = File(...)):
+async def upload_document(project: ProjectDependency, file: UploadFile = File(...)):
+
 
     document_id = str(uuid4())
 
     extension = file.filename.split(".")[-1]
 
-    blob_name = f"{project_id}/{document_id}/source.{extension}"
+    blob_name = f"{project["id"]}/{document_id}/{file.filename}"
 
     content = await file.read()
 
@@ -39,14 +53,14 @@ async def upload_document(project_id: str, file: UploadFile = File(...)):
         document_id=document_id, file_name=file.filename, blob_url=blob_url
     )
 
-    await db.create_item(
+    await document.create_item(
         Document(
             id=document_id,
             blob_url=blob_url,
-            file_name=f"source.{extension}",
+            file_name=file.filename,
             file_format=FileFormat(extension.upper()),
             file_type=FileType.ARCHITECTURE_DEFINITION,
-            project_id=project_id,
+            project_id=project["id"],
             status=DocumentStatus.PENDING,
         ).model_dump()
     )
@@ -66,12 +80,23 @@ async def upload_document(project_id: str, file: UploadFile = File(...)):
     )
 
 
-@router.get("/project/{project_id}/document")
-async def get_documents(project_id: str):
-    return await db.query_items(query="")
+@router.get("/project/{project_id}/document", response_model=List[Document])
+async def get_documents(project: ProjectDependency):
+    
+    documents = await document.query_items(query=f"""
+            SELECT *
+            FROM c
+            WHERE c.project_id = @project_id""",
+            parameters=[{
+                "name": "@project_id",
+                "value": project["id"]
+            }]
+    )
+
+    return documents 
 
 
 @router.post("/project/{project_id}/document/{document_id}/review")
-async def create_review(project_id: str, document_id: str):
+async def create_review(project: ProjectDependency, document_id: str):
     # submit a message in a queue - so the review can be processed later
     pass
