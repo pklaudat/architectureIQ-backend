@@ -45,8 +45,6 @@ class AgenticReview(ServiceBusQueueConsumer):
                 elif event.executor_id == StateMap.review_curator.name:
                     print(f"Review for {review_id} is completed")
                     result = event.data[0].agent_response.value
-                    breakpoint()
-
 
                     await reviews.patch_item(
                         item_id=review_id,

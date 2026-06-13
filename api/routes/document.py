@@ -4,9 +4,11 @@ from typing import List
 from fastapi import APIRouter, UploadFile, File
 from api.utils.dependencies import ProjectDependency
 from api.models.document import *
+from api.models.summaries import DocumentSummary
 from api.services.blob_storage import BlobStorageService
 from api.services.cosmos_db import CosmosDbService
 from api.services.publisher import ServiceBusQueuePublisher
+from api.services import store
 
 document = CosmosDbService(container_name="Documents")
 projects = CosmosDbService(container_name="Projects")
@@ -58,15 +60,25 @@ async def upload_document(project: ProjectDependency, file: UploadFile = File(..
     )
 
 
-@router.get("/project/{project_id}/document", response_model=List[Document])
+@router.get("/documents", response_model=List[DocumentSummary])
+async def list_all_documents():
+    """All documents across every project (used by the global Documents page)."""
+    documents = await store.fetch_all_documents()
+    all_projects = await store.fetch_all_projects()
+    name_by_id = {p.get("id"): p.get("display_name") for p in all_projects}
+
+    return [store.map_document(d, name_by_id.get(d.get("project_id"))) for d in documents]
+
+
+@router.get("/project/{project_id}/document", response_model=List[DocumentSummary])
 async def get_documents(project: ProjectDependency):
 
     documents = await document.query_items(
-        query=f"""
+        query="""
             SELECT *
             FROM c
             WHERE c.project_id = @project_id""",
         parameters=[{"name": "@project_id", "value": project["id"]}],
     )
 
-    return documents
+    return [store.map_document(d, project.get("display_name")) for d in documents]
