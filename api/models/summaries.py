@@ -40,6 +40,15 @@ class DocumentSummary(BaseModel):
     createdAt: str = ""
 
 
+class CuratedReportSummary(BaseModel):
+    status: str = ""
+    executiveSummary: str = ""
+    strengths: List[str] = []
+    risks: List[str] = []
+    priorityActions: List[str] = []
+    references: List[str] = []
+
+
 class ReviewSummary(BaseModel):
     id: str
     documentId: Optional[str] = None
@@ -50,6 +59,7 @@ class ReviewSummary(BaseModel):
     score: Optional[int] = None
     findings: Optional[int] = None
     date: str = ""
+    report: Optional[CuratedReportSummary] = None
 
 
 class FindingSummary(BaseModel):

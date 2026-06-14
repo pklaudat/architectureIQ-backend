@@ -7,6 +7,7 @@ from api.models.summaries import (
     ProjectSummary,
     DocumentSummary,
     ReviewSummary,
+    CuratedReportSummary,
     FindingSummary,
     Analytics,
     AnalyticsKpis,
@@ -131,6 +132,19 @@ def map_project(project, docs, revs):
 
 def map_review(review, document_name=None, project_name=None):
     done = review.get("status") == "completed"
+    report_obj = review.get("report")
+    report_mapped = None
+
+    if report_obj and isinstance(report_obj, dict):
+        report_mapped = CuratedReportSummary(
+            status=report_obj.get("status", ""),
+            executiveSummary=report_obj.get("executive_summary", ""),
+            strengths=report_obj.get("strengths", []),
+            risks=report_obj.get("risks", []),
+            priorityActions=report_obj.get("priority_actions", []),
+            references=report_obj.get("references", []),
+        )
+
     return ReviewSummary(
         id=review.get("id", ""),
         documentId=review.get("document_id"),
@@ -140,6 +154,7 @@ def map_review(review, document_name=None, project_name=None):
         score=review.get("score") if done else None,
         findings=len(review.get("findings") or []) if done else None,
         date=_ago(review.get("completed_at") or review.get("created_at")) or "",
+        report=report_mapped,
     )
 
 

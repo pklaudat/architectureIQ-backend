@@ -25,7 +25,6 @@ class AgenticReview(ServiceBusQueueConsumer):
     async def execute(self, review_id: str, document_content: str):
         w = review_workflow()
 
-        last_agent: str | None = None
 
         async for event in w.run(document_content, stream=True):
 

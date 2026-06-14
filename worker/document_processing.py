@@ -14,23 +14,14 @@ queue = ServiceBusQueuePublisher("reviews-processing")
 
 class DocumentProcessing(ServiceBusQueueConsumer):
 
-    async def pre_content_analyzis(self, document: Document):
-        """Review the uploaded content and determine label the file with its content type"""
-        print("Pre Content Analyzis step")
-
     async def content_extraction(self, document: Document):
         """Call content understanding API to extract content from pdf, png and other formats"""
         print("Running Content Extraction")
         content = ""
 
-        if document.file_format == FileFormat.TXT:
-            print("TXT File detected. No need to call the content extraction service.")
-            # content = await blob.read_text(
-            #     blob_name="/".join(
-            #         document.blob_url.replace("https://", "").split("/")[2:]
-            #     ),
-            # )
-            # print(content)
+        if document.file_format in [FileFormat.TXT, FileFormat.MD, FileFormat.DOCX]:
+            print("Raw file detected. No need to call the content extraction service.")
+
 
         await db.patch_item(
             item_id=document.id,
@@ -43,8 +34,6 @@ class DocumentProcessing(ServiceBusQueueConsumer):
                 }
             ],
         )
-
-        return content
 
     async def process_message(self, payload: dict):
 
@@ -74,9 +63,7 @@ class DocumentProcessing(ServiceBusQueueConsumer):
 
             print(f"document validation {doc.model_dump()}")
 
-            doc_label = await self.pre_content_analyzis(doc)
-
-            content = await self.content_extraction(doc)
+            await self.content_extraction(doc)
 
             print(f"Content extracted successfully for {item["id"]}")
 
