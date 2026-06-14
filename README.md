@@ -2,7 +2,7 @@
 
 The Python **FastAPI** service that powers the Architecture Advisor. It exposes the REST API consumed by the UI, persists data in Azure Cosmos DB, stores uploaded documents in Azure Blob Storage, and runs background workers that process documents and generate AI architecture reviews via Azure Service Bus queues.
 
-> This is the backend half of the project. For the React UI see [`../architecture-review-ui/README.md`](../architecture-review-ui/README.md). For the high-level overview of how the two halves fit together, see the [root README](../README.md).
+> This is the backend half of the project. For the React UI see [`../frontend/README.md`](../frontend/README.md). For the high-level overview of how the two halves fit together, see the [root README](../README.md).
 
 ---
 
@@ -29,6 +29,8 @@ The Python **FastAPI** service that powers the Architecture Advisor. It exposes 
 | `azure-servicebus` | ≥7.14.3 | Async messaging |
 | `azure-storage-blob` | ≥12.30.0b1 | File storage |
 | `azure-identity` | (bundled) | Keyless authentication |
+| `agent-framework` | ≥1.7.0 | **Microsoft Agent Framework** — multi-agent review workflow |
+| `tenacity` | ≥9.1.4 | Retry/back-off for agent model calls |
 
 ---
 
@@ -60,9 +62,18 @@ backend/
 │   │   └── store.py              # Fetch helpers + Cosmos→DTO mappers + analytics aggregation
 │   └── utils/
 │       └── dependencies.py       # FastAPI dependencies (ProjectDependency, DocumentDependency)
+├── orchestration/                # Multi-agent review workflow (Microsoft Agent Framework)
+│   ├── workflow.py               # WorkflowBuilder graph: dispatcher → facts → [EA, IQ] → aggregator → curator
+│   └── agents/
+│       ├── dispatcher.py         # Entry Executor (content-safety gate)
+│       ├── aggregator.py         # Fan-in Executor: merge reviews, weighted score, conflicts
+│       ├── auto_retry.py         # RateLimitRetryMiddleware (tenacity exponential back-off)
+│       ├── state/                # Typed Pydantic contracts (ArchitectureFacts, EAReview, IQReview, …)
+│       ├── models/               # Model id constants (DISPATCHER_MODEL, …)
+│       └── prompts/system/       # Per-agent system prompts (ARCHITECTURE_FACTS, EA_REVIEWER, IQ_REVIEWER, …)
 └── worker/                       # Background job handlers (Service Bus consumers)
     ├── document_processing.py    # DocumentProcessing worker
-    └── agentic_review.py         # AgenticReview worker
+    └── agentic_review.py         # AgenticReview worker (drives the orchestration workflow)
 ```
 
 ---
@@ -93,7 +104,130 @@ agentic_review  = AgenticReview(queue_name="reviews-processing")
 Started automatically by `main.py`:
 
 1. **DocumentProcessing** – consumes `document-processing`, extracts/classifies content, updates document status.
-2. **AgenticReview** – consumes `reviews-processing`, runs the AI review (facts → findings → score → curated report), and persists the `Review`.
+2. **AgenticReview** – consumes `reviews-processing`, drives the **multi-agent review workflow** (see [Agent Orchestration](#agent-orchestration--microsoft-agent-framework-on-azure-ai-foundry)), and streams results into the `Review` container.
+
+---
+
+## Agent Orchestration — Microsoft Agent Framework on Azure AI Foundry
+
+The heart of the product lives in **`orchestration/`**. Instead of a single monolithic prompt, the architecture review is produced by a **graph of specialized agents** built with the **[Microsoft Agent Framework](https://github.com/microsoft/agent-framework)** (`agent_framework`). The framework gives us a deterministic, observable, and fault-tolerant way to coordinate several domain experts — and runs on top of **Azure AI Foundry** as the managed model/agent runtime.
+
+### Why Microsoft Agent Framework
+
+It directly addresses the things that make multi-agent systems unreliable:
+
+| Concern | How the framework solves it (in this code) |
+|---------|--------------------------------------------|
+| **Free-text drift** | Every agent declares a **typed output** via `ChatOptions(response_format=<PydanticModel>)`. Each hop is schema-validated, so downstream agents receive structured data, never prose to re-parse. |
+| **Transient model failures** | A custom **`RateLimitRetryMiddleware`** (tenacity, exponential back-off) wraps every model call; rate-limit errors are retried independently per agent and per tool-loop step. |
+| **Non-determinism / coordination** | The pipeline is an explicit **`WorkflowBuilder`** graph with typed edges and **fan-out / fan-in**, so the parallel reviews run predictably and converge at a single join. |
+| **Observability** | The workflow emits **streaming `executor_completed` events**; the worker maps each to a `ReviewStatus` and patches it to Cosmos in real time, so the UI tracks progress step-by-step. |
+| **Grounding** | Agents attach **tools** (e.g. the Microsoft Learn MCP server) and can plug in retrieval context providers, so reviews are grounded in authoritative sources, not model memory. |
+| **Extensibility** | Adding a new domain specialist is one `Agent` + two edges — no rewrite of the pipeline. |
+
+### The workflow graph (`workflow.py`)
+
+The review is a directed graph: the facts extractor **fans out** to two independent domain specialists that run in parallel — each grounded by its own knowledge source — then their results **fan in** to the aggregator and are distilled by the curator.
+
+```mermaid
+flowchart LR
+    Doc(["📄 Document content"]) --> Dispatcher
+
+    Dispatcher["<b>Dispatcher</b><br/>Executor · content-safety gate"]
+    Facts["<b>Facts Extractor</b><br/>→ ArchitectureFacts"]
+    EA["<b>Enterprise Architecture Specialist</b><br/>TOGAF · → EAReview"]
+    IQ["<b>Internal IQ Advisor</b><br/>internal standards · → IQReview"]
+    Agg["<b>Aggregator</b><br/>merge findings + recommendations,<br/>weighted score (EA 40% / IQ 60%), conflicts<br/>→ AggregatedReview"]
+    Curator["<b>Curator</b><br/>executive summary, strengths,<br/>risks, priority actions<br/>→ FinalReviewResult"]
+    Result(["🏁 Final result<br/>score · findings · curated report"])
+
+    MCP[["🌐 Web IQ — Microsoft Learn MCP<br/>TOGAF + Microsoft best practices"]]
+    KB[("🗄️ Foundry IQ<br/>internal knowledge standards")]
+
+    Dispatcher --> Facts
+    Facts -- fan-out --> EA
+    Facts -- fan-out --> IQ
+    EA -. grounding .-> MCP
+    IQ -. grounding .-> KB
+    EA -- fan-in --> Agg
+    IQ -- fan-in --> Agg
+    Agg --> Curator --> Result
+
+    classDef exec fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A;
+    classDef agent fill:#F5F3FF,stroke:#7C3AED,color:#4C1D95;
+    classDef tool fill:#ECFDF5,stroke:#059669,color:#065F46;
+    classDef term fill:#F8FAFC,stroke:#94A3B8,color:#0F172A;
+
+    class Dispatcher,Agg exec;
+    class Facts,EA,IQ,Curator agent;
+    class MCP,KB tool;
+    class Doc,Result term;
+```
+
+> **Legend** — blue = framework `Executor` (dispatcher, aggregator) · purple = LLM `Agent` (facts, EA, IQ, curator) · green = external grounding source (Web IQ via Microsoft Learn MCP, Foundry IQ via the internal knowledge base) · solid arrows = workflow edges · dotted arrows = retrieval/grounding.
+
+Built declaratively:
+
+```python
+WorkflowBuilder(name="Enterp Architecture Advisor", start_executor=dispatcher)
+    .add_edge(source=dispatcher, target=architecture_facts_extractor)
+    .add_fan_out_edges(architecture_facts_extractor, [enterprise_arch_reviewer, internal_iq_advisor])
+    .add_fan_in_edges([enterprise_arch_reviewer, internal_iq_advisor], aggregator)
+    .add_edge(source=aggregator, target=curator)
+    .build()
+```
+
+### The domain-specialized agents
+
+Each stage is a focused expert with its own system prompt (`orchestration/agents/prompts/system/`) and typed contract — easy to reason about, test, and swap:
+
+| Agent | Type | Domain responsibility | Output model |
+|-------|------|-----------------------|--------------|
+| **Dispatcher** | `Executor` | Entry point; guardrail hook for content-safety validation before any model runs | `str` (document content) |
+| **Architecture Facts Extractor** | `Agent` | Normalizes the raw document into structured facts (auth, availability, technology, stakeholders); **extracts only — never scores or critiques** | `ArchitectureFacts` |
+| **Enterprise Architecture Reviewer** | `Agent` | **TOGAF-aligned** EA review; grounds recommendations with the **Microsoft Learn MCP** tool | `EAReview` |
+| **Internal IQ Advisor** | `Agent` | Compliance against **internal standards, approved technologies & governance**; emits policy `violations` | `IQReview` |
+| **Aggregator** | `Executor` | Merges findings & recommendations from both reviewers, computes a **weighted overall score (EA 40% / IQ 60%)**, flags conflicts | `AggregatedReview` |
+| **Curator** | `Agent` | Distills everything into an executive **curated report** (summary, strengths, risks, priority actions) | `FinalReviewResult` → `CuratedReport` |
+
+Because the two reviewers are **independent specialists running in parallel**, you can add more domains (e.g. a security/Zero-Trust reviewer, a FinOps cost reviewer) by registering another `Agent` and wiring it into the fan-out/fan-in — the aggregator and curator absorb the extra signal without structural changes.
+
+### Typed state contracts (`agents/state/`)
+
+The Pydantic models are the reliability backbone — they are the *interface* between agents:
+
+`ArchitectureFacts` → `EAReview` / `IQReview` → `AggregatedReview` → `CuratedReport` → `FinalReviewResult`
+
+A parallel `ReviewStatus` enum and `StateMap` map every executor id to a lifecycle status:
+
+`started → facts_extracted → ea_review_complete / iq_review_complete → aggregated → curated → completed`
+
+### Azure AI Foundry integration
+
+Microsoft Agent Framework abstracts the model backend behind a **chat client**, so the same agent graph runs on **Azure AI Foundry**-hosted models and agents:
+
+```python
+# Foundry-hosted models/agents (managed, keyless via DefaultAzureCredential):
+# from agent_framework.foundry import FoundryChatClient
+chat_client = OpenAIChatClient(model=model.DISPATCHER_MODEL)   # ← single swap point
+```
+
+The chat client is the **one place** to point the whole workflow at Azure AI Foundry — every agent is constructed with it. This keeps Foundry's managed hosting, keyless auth (`DefaultAzureCredential`), and built-in governance consistent with the rest of the backend's Azure-native, no-API-keys posture. Grounding is layered on top: the EA reviewer calls the **Microsoft Learn MCP** server today, and the IQ advisor is designed to ground against an internal knowledge base (e.g. an Azure AI Search context provider) for organization-specific standards.
+
+### How the worker drives it (`worker/agentic_review.py`)
+
+```python
+workflow = review_workflow()
+async for event in workflow.run(document_content, stream=True):
+    if event.type == "executor_completed":
+        status = StateMap[event.executor_id].value
+        await self.update_status(review_id, status)          # live progress → Cosmos
+        if event.executor_id == StateMap.review_curator.name:
+            result = event.data[0].agent_response.value      # FinalReviewResult
+            # persist score, facts, findings, recommendations, curated report
+```
+
+So a single uploaded document flows: **Blob → workflow graph → streamed status updates → final `Review` (score + findings + curated report) in Cosmos**, which the API then serves to the UI.
 
 ---
 
@@ -164,8 +298,9 @@ class Settings(BaseSettings):
                    → enqueue "reviews-processing"
 
 4. REVIEW WORKER   AgenticReview consumes the message
-                   → run AI review (facts → findings → score → curated report)
-                   → persist Review (status: "completed", score, findings, report)
+                   → run the multi-agent workflow (see Agent Orchestration):
+                     facts → [EA review ‖ IQ review] → aggregate → curate
+                   → stream per-step status, persist Review (score, findings, report)
                    → document status → "Completed"
 
 5. UI REFRESH      frontend polls GET /api/projects/{id}
