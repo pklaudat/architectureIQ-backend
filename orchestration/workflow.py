@@ -27,7 +27,6 @@ def review_workflow():
     architecture_facts_extractor = Agent(
         client=chat_client,
         id="architecture_facts_extractor",
-        # name="Architecture Facts Extractor",
         instructions=prompt_content(name="ARCHITECTURE_FACTS"),
         default_options=ChatOptions(response_format=ArchitectureFacts),
         middleware=[RateLimitRetryMiddleware(max_attempts=3)]
@@ -36,7 +35,6 @@ def review_workflow():
     enterprise_arch_reviewer = Agent(
         client=chat_client,
         id="enterprise_architecture_reviewer",
-        # name="Enterprise Architect Reviewer",
         instructions=prompt_content(name="EA_REVIEWER"),
         default_options=ChatOptions(response_format=EAReview),
         tools=[
@@ -54,7 +52,6 @@ def review_workflow():
     internal_iq_advisor = Agent(
         client=chat_client,
         id="internal_iq_advisor",
-        # name="Internal IQ Adivisor",
         instructions=prompt_content(name="IQ_REVIEWER"),
         default_options=ChatOptions(response_format=IQReview),
         middleware=[RateLimitRetryMiddleware(max_attempts=3)]
@@ -65,7 +62,6 @@ def review_workflow():
     curator = Agent(
         client=chat_client,
         id="review_curator",
-        # name="ReviewCurator",
         instructions=prompt_content(name="CURATOR"),
         default_options=ChatOptions(response_format=FinalReviewResult),
         middleware=[RateLimitRetryMiddleware(max_attempts=3)]
