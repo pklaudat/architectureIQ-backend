@@ -288,8 +288,8 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# Install dependencies (from the repo root pyproject)
-pip install -e ..
+# Install dependencies (backend/pyproject.toml)
+pip install -e .
 
 # Authenticate to Azure (keyless)
 az login
