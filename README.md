@@ -437,29 +437,6 @@ python main.py
 
 > ⚠️ The backend needs reachable Azure resources (Cosmos, Blob, Service Bus) to fully run. Note that `uvicorn` here does **not** hot-reload — restart the process after changing models or services.
 
-### Environment variables
-Create `backend/.env` (git-ignored):
-
-```env
-STORAGE_ACCOUNT_NAME=saagentsleaguereviewerc
-STORAGE_ACCOUNT_CONTAINER_NAME=architecture-documents
-COSMOS_DB_URL=https://enterpadvisor.documents.azure.com:443/
-COSMOS_DB_ACCOUNT_NAME=ArchitectureAdvisor
-SERVICEBUS_NAMESPACE=sb-ai102pkbox-centralindia.servicebus.windows.net
-SERVICEBUS_QUEUE=document-processing
-```
-
----
-
-## Deployment (Azure App Service)
-
-```bash
-az appservice plan create --name plan-advisor --resource-group rg-advisor --sku B1 --is-linux
-az webapp create --name api-advisor --resource-group rg-advisor --plan plan-advisor --runtime "PYTHON|3.13"
-```
-
-Assign the App Service's managed identity the RBAC roles listed above, then configure the environment variables as App Settings.
-
 ---
 
 ## Troubleshooting
